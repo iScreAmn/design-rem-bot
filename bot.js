@@ -1,4 +1,4 @@
-process.loadEnvFile();
+// process.loadEnvFile();
 const { Bot, InlineKeyboard } = require("grammy");
 
 const bot = new Bot(process.env.BOT_API_KEY);
