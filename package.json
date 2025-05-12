@@ -1,0 +1,17 @@
+{
+  "name": "myveryfirsttimetg_bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "bot.js",
+  "scripts": {
+    "start": "nodemon bot.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "grammy": "^1.36.1",
+    "nodemon": "^3.1.10"
+  }
+}
