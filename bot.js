@@ -1,12 +1,16 @@
 process.loadEnvFile();
-const { Bot, InlineKeyboard, InputFile } = require("grammy");
+const { Bot, InlineKeyboard, InputFile, session } = require("grammy");
 const fs = require("fs");
 const path = require("path");
 
 const bot = new Bot(process.env.BOT_API_KEY);
 
-// Замените на ваш канал
-const CHANNEL_USERNAME = "@lafee_remont";
+const CHANNEL_USERNAME = "@iscreamchanell";
+const DESIGNER_USERNAME = "@olga_korshow";
+
+bot.use(session({
+  initial: () => ({ style: null }),
+}));
 
 bot.api.setMyCommands([
   { command: "start", description: "Начать общение с ботом" },
@@ -52,15 +56,17 @@ bot.callbackQuery("show_options", async (ctx) => {
 bot.callbackQuery(/option_\d/, async (ctx) => {
   console.log("Обработка callbackQuery: option");
 
-  const photoUrls = [
-    "https://flic.kr/p/2r3EQcs",
-    "https://flic.kr/p/2r3EQcc",
-    "https://flic.kr/p/2r3EQcx",
-    "https://flic.kr/p/2r3EQch",
+  const photoFiles = [
+    "modern.jpeg",
+    "classic.jpeg",
+    "minimal.jpeg",
+    "loft.jpeg",
   ];
 
-  for (const url of photoUrls) {
-    await ctx.replyWithPhoto(url);
+  for (const fileName of photoFiles) {
+    const filePath = path.join(__dirname, "img", fileName);
+    const photo = new InputFile(filePath);
+    await ctx.replyWithPhoto(photo);
   }
 
   const newQuestionKeyboard = new InlineKeyboard()
@@ -84,16 +90,42 @@ bot.callbackQuery(/option_\d/, async (ctx) => {
 bot.callbackQuery(/answer_\d/, async (ctx) => {
   console.log("Обработка callbackQuery: answer");
 
-  const keyboard = new InlineKeyboard()
-  .text("Получить подарок 🎁", "get_gift");
+  const answer = ctx.callbackQuery.data;
 
-  await ctx.reply(
-    '<b>Спасибо за ответы.</b> Для получения подарка от нашего дизайнера, подпишитесь на наш Telegram канал <a href="https://t.me/lafee_remont">Подписаться 👇</a>.',
-    {
+  // Сопоставление выбора пользователя с соответствующим PDF-файлом
+  const styleMap = {
+    answer_1: "modern.pdf",
+    answer_2: "classic.pdf",
+    answer_3: "minimal.pdf",
+    answer_4: "loft.pdf",
+  };
+
+  if (styleMap[answer]) {
+    // Сохраняем выбор пользователя в сессии
+    ctx.session.style = styleMap[answer];
+
+    const keyboard = new InlineKeyboard().text("Получить подарок 🎁", "get_gift");
+
+    await ctx.reply(
+      '<b>Спасибо за ответы.</b> Для получения подарка подпишитесь на наш Telegram канал <a href="https://t.me/lafee_remont">Подписаться 👇</a>.',
+      {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      }
+    );
+  } else if (answer === "answer_5") {
+    const message = `<b>Спасибо за ответы.</b> Для получения подборки по стилю от нашего дизайнера, напишите нам в Telegram слово "СТИЛЬ".`;
+
+    const keyboard = new InlineKeyboard().url(
+      'Написать слово "СТИЛЬ"',
+      `https://t.me/${DESIGNER_USERNAME}?start=СТИЛЬ`
+    );
+
+    await ctx.reply(message, {
       parse_mode: "HTML",
       reply_markup: keyboard,
-    }
-  );
+    });
+  }
 
   await ctx.answerCallbackQuery();
 });
@@ -109,11 +141,17 @@ bot.callbackQuery("get_gift", async (ctx) => {
       status === "administrator" ||
       status === "creator"
     ) {
-      const filePath = path.join(__dirname, "pdf", "demoFile1.pdf");
-      const document = new InputFile(filePath, "demoFile1.pdf");
-      await ctx.replyWithDocument(document, {
-        caption: "🎁 Спасибо за подписку! Вот ваш подарок — прайс-лист.",
-      });
+      const selectedStyle = ctx.session.style;
+
+      if (selectedStyle) {
+        const filePath = path.join(__dirname, "pdf", selectedStyle);
+        const document = new InputFile(filePath, selectedStyle);
+        await ctx.replyWithDocument(document, {
+          caption: "🎁 Спасибо за подписку! Вот ваш подарок — подборка по выбранному стилю.",
+        });
+      } else {
+        await ctx.reply("К сожалению, не удалось определить ваш выбор стиля. Пожалуйста, пройдите опрос заново.");
+      }
     } else {
       const keyboard = new InlineKeyboard().text(
         "Получить подарок 🎁",
