@@ -8,7 +8,7 @@ const bot = new Bot(process.env.BOT_API_KEY);
 const CHANNEL_USERNAME = "@iscreamchanell";
 const DESIGNER_USERNAME = "olga_korshow";
 
-// --- Сохраняем пользователей в файл для персистентности ---
+// Сохраняем пользователей в JSON
 const usersFilePath = path.join(__dirname, "data", "users.json");
 let users = new Set();
 // Загрузка пользователей из файла
@@ -92,9 +92,16 @@ bot.command("clear", async (ctx) => {
   }
 });
 
+// Инициализация сессии с поддержкой нескольких подарков
 bot.use(session({
-  initial: () => ({ style: null }),
+  initial: () => ({
+    style: null,
+    giftSent: {}, // Хранит информацию о полученных подарках
+    giftMessages: []
+  }),
 }));
+
+
 
 bot.api.setMyCommands([
   { command: "start", description: "Начать общение с ботом" },
@@ -115,6 +122,11 @@ async function isAdmin(ctx) {
 bot.command("start", async (ctx) => {
   console.log("Обработка команды /start");
 
+  // Сброс информации о полученных подарках
+  ctx.session.giftSent = {};
+  ctx.session.style = null;
+  ctx.session.giftMessages = [];
+
   const firstName = ctx.from?.first_name || "пользователь";
 
   const filePath = path.join(__dirname, "img", "welcome.jpg");
@@ -122,7 +134,6 @@ bot.command("start", async (ctx) => {
 
   const caption = `Привет, ${firstName}!\n\nОтветьте всего на 2 вопроса и получите <b>ГОТОВОЕ ДИЗАЙНЕРСКОЕ РЕШЕНИЕ</b>`;
 
-  // Убираем кнопку "Удалить список" из стартового сообщения
   const keyboard = new InlineKeyboard().text("Ответить на вопросы", "show_options");
 
   // Добавляем кнопку "Список" только для администраторов
@@ -168,7 +179,7 @@ bot.callbackQuery("show_options", async (ctx) => {
     .row()
     .text("Две комнаты", "option_2")
     .row()
-    .text("5 и более", "option_3");
+    .text("3 и более", "option_3");
 
   await ctx.reply("Сколько комнат в квартире?", {
     reply_markup: optionsKeyboard,
@@ -256,54 +267,82 @@ bot.callbackQuery(/answer_\d/, async (ctx) => {
 
 bot.callbackQuery("get_gift", async (ctx) => {
   try {
+    // Проверяем, был ли выбран стиль, если нет — сбрасываем выбор
+    if (!ctx.session.style) {
+      await ctx.reply("📝 Пожалуйста, выберите стиль заново, так как данные сессии были сброшены.");
+      return;
+    }
+
+    const selectedStyle = ctx.session.style;
+
+    // Проверяем, получил ли пользователь уже подарок для выбранного стиля
+    if (ctx.session.giftSent[selectedStyle]) {
+      await ctx.answerCallbackQuery({ text: "Вы уже получили этот подарок 🎁", show_alert: true });
+      return;
+    }
+
     // Проверка подписки пользователя на канал
     const member = await ctx.api.getChatMember(CHANNEL_USERNAME, ctx.from.id);
     const status = member.status;
 
-    if (
-      status === "member" ||
-      status === "administrator" ||
-      status === "creator"
-    ) {
-      const selectedStyle = ctx.session.style;
+    if (status === "member" || status === "administrator" || status === "creator") {
+      const filePath = path.join(__dirname, "pdf", selectedStyle);
+      const document = new InputFile(filePath, selectedStyle);
+      await ctx.replyWithDocument(document, {
+        caption: "🎁 Спасибо за подписку! Вот ваш подарок — подборка по выбранному стилю.",
+      });
 
-      if (selectedStyle) {
-        const filePath = path.join(__dirname, "pdf", selectedStyle);
-        const document = new InputFile(filePath, selectedStyle);
-        await ctx.replyWithDocument(document, {
-          caption: "🎁 Спасибо за подписку! Вот ваш подарок — подборка по выбранному стилю.",
-        });
-      } else {
-        await ctx.reply("К сожалению, не удалось определить ваш выбор стиля. Пожалуйста, пройдите опрос заново.");
+      // Обновляем все сообщения с кнопкой "Получить подарок" на "Спасибо 🥳"
+      const thankYouKeyboard = new InlineKeyboard().text("Спасибо 🥳", "thank_you");
+
+      if (ctx.session.giftMessages) {
+        for (const msg of ctx.session.giftMessages) {
+          try {
+            await ctx.api.editMessageReplyMarkup(msg.chat_id, msg.message_id, {
+              reply_markup: thankYouKeyboard,
+            });
+          } catch (err) {
+            console.error(`Не удалось обновить сообщение ${msg.message_id}:`, err);
+          }
+        }
+        // Очищаем список сообщений после обновления
+        ctx.session.giftMessages = [];
       }
+
+      // Отмечаем, что подарок для выбранного стиля уже отправлен
+      ctx.session.giftSent[selectedStyle] = true;
     } else {
-      const keyboard = new InlineKeyboard().text(
-        "Получить подарок 🎁",
-        "get_gift"
-      );
-      await ctx.reply(
+      const keyboard = new InlineKeyboard().text("Получить подарок 🎁", "get_gift");
+      const sentMessage = await ctx.reply(
         `Пожалуйста, подпишитесь на наш канал ${CHANNEL_USERNAME}, чтобы получить подарок.`,
         { reply_markup: keyboard }
       );
+
+      // Сохраняем идентификатор сообщения с кнопкой "Получить подарок"
+      if (!ctx.session.giftMessages) {
+        ctx.session.giftMessages = [];
+      }
+      ctx.session.giftMessages.push({
+        chat_id: ctx.chat.id,
+        message_id: sentMessage.message_id,
+      });
     }
+
     await ctx.answerCallbackQuery();
   } catch (err) {
     console.error("Ошибка при проверке подписки или отправке PDF:", err);
-    await ctx.reply(
-      "Произошла ошибка при проверке вашей подписки или отправке файла. Пожалуйста, попробуйте позже."
-    );
+    await ctx.reply("Произошла ошибка при проверке вашей подписки или отправке файла. Пожалуйста, попробуйте позже.");
   }
 });
 
-// Обработка кнопки "Список" для отправки списка пользователей
 bot.callbackQuery("admin_list", async (ctx) => {
   try {
     if (users.size > 0) {
       const userList = Array.from(users).join("\n");
-      await ctx.reply(`📄 Список пользователей, начавших взаимодействие с ботом:\n\n${userList}`);
+      await ctx.reply(`💡 Список пользователей, начавших взаимодействие с ботом:\n\n${userList}`);
       console.log("Список пользователей успешно отправлен.");
     } else {
-      await ctx.reply("Список пользователей пока пуст.");
+      await ctx.reply("⚙️ Список пользователей пока пуст.");
       console.log("Список пользователей пуст.");
     }
   } catch (err) {
@@ -313,39 +352,5 @@ bot.callbackQuery("admin_list", async (ctx) => {
 
   await ctx.answerCallbackQuery();
 });
-
-// bot.command("price", async (ctx) => {
-//   try {
-//     // Проверка подписки пользователя на канал
-//     const member = await ctx.api.getChatMember(CHANNEL_USERNAME, ctx.from.id);
-//     const status = member.status;
-
-//     if (
-//       status === "member" ||
-//       status === "administrator" ||
-//       status === "creator"
-//     ) {
-//       const filePath = path.join(__dirname, "price.pdf");
-//       const document = new InputFile(filePath, "price.pdf");
-//       await ctx.replyWithDocument(document, {
-//         caption: "📄 Вот ваш прайс-лист. Если возникнут вопросы — пишите!",
-//       });
-//     } else {
-//       const keyboard = new InlineKeyboard().text(
-//         "Получить подарок 🎁",
-//         "get_gift"
-//       );
-//       await ctx.reply(
-//         `Пожалуйста, подпишитесь на наш канал ${CHANNEL_USERNAME}, чтобы получить прайс-лист.`,
-//         { reply_markup: keyboard }
-//       );
-//     }
-//   } catch (err) {
-//     console.error("Ошибка при проверке подписки или отправке PDF:", err);
-//     await ctx.reply(
-//       "Произошла ошибка при проверке вашей подписки или отправке файла. Пожалуйста, попробуйте позже."
-//     );
-//   }
-// });
 
 bot.start();
