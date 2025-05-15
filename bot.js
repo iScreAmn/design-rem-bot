@@ -8,63 +8,48 @@ const bot = new Bot(process.env.BOT_API_KEY);
 const CHANNEL_USERNAME = "@iscreamchanell";
 const DESIGNER_USERNAME = "olga_korshow";
 
-const userIdsFilePath = path.join(__dirname, "user_ids.txt");
+// Функция для добавления имени пользователя в память
+const users = new Set();
 
-// Функция для добавления имени пользователя в файл (синхронная версия)
-function addUserId(ctx) {
-  try {
-    // Проверяем, что папка data существует, если нет - создаем
-    const dataDir = path.join(__dirname, "data");
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir);
-    }
-
-    // Путь к файлу user_ids.txt
-    const filePath = path.join(dataDir, "user_ids.txt");
-
-    // Получаем имя пользователя (username) или имя и фамилию
-    const user = ctx.from;
-    const userName = user.username ? `@${user.username}` : `${user.first_name} ${user.last_name || ""}`.trim();
-
-    // Читаем существующие user_id из файла
-    let data = '';
-    if (fs.existsSync(filePath)) {
-      data = fs.readFileSync(filePath, 'utf8');
-    }
-
-    const userIds = data ? data.split('\n').filter(Boolean) : [];
-    if (!userIds.includes(userName)) {
-      fs.appendFileSync(filePath, `${userName}\n`);
-      console.log(`Добавлен новый пользователь: ${userName}`);
-    }
-  } catch (err) {
-    console.error("Ошибка при обработке файла user_ids.txt:", err);
-  }
+function addUser(ctx) {
+  const user = ctx.from;
+  const userName = user.username ? `@${user.username}` : `${user.first_name} ${user.last_name || ""}`.trim();
+  users.add(userName);
+  console.log(`Добавлен новый пользователь: ${userName}`);
 }
 
-// Обработка команды /list для отправки списка пользователей в сообщении
+// Обработка команды /list для отправки списка пользователей в сообщении с кнопкой очистки
 bot.command("list", async (ctx) => {
   try {
-    const filePath = path.join(__dirname, "data", "user_ids.txt");
+    const keyboard = new InlineKeyboard().text("🗑️ Очистить список", "clear_list");
 
-    if (fs.existsSync(filePath)) {
-      const data = fs.readFileSync(filePath, "utf8").split("\n").filter(Boolean);
-      const userList = data.join("\n");
-
-      if (userList.length > 0) {
-        await ctx.reply(`📄 Список пользователей, начавших взаимодействие с ботом:\n\n${userList}`);
-        console.log("Список пользователей успешно отправлен.");
-      } else {
-        await ctx.reply("Список пользователей пока пуст.");
-        console.log("Список пользователей пуст.");
-      }
+    if (users.size > 0) {
+      const userList = Array.from(users).join("\n");
+      await ctx.reply(`📄 Список пользователей, начавших взаимодействие с ботом:\n\n${userList}`, {
+        reply_markup: keyboard,
+      });
+      console.log("Список пользователей успешно отправлен.");
     } else {
-      await ctx.reply("Файл user_ids.txt не найден.");
-      console.log("Файл user_ids.txt не найден.");
+      await ctx.reply("Список пользователей пока пуст.", {
+        reply_markup: keyboard,
+      });
+      console.log("Список пользователей пуст.");
     }
   } catch (err) {
     console.error("Ошибка при отправке списка пользователей:", err);
     await ctx.reply("Произошла ошибка при выполнении команды.");
+  }
+});
+
+// Обработка команды /clear для очистки списка пользователей
+bot.command("clear", async (ctx) => {
+  try {
+    users.clear();
+    await ctx.reply("Список пользователей успешно очищен.");
+    console.log("Список пользователей очищен.");
+  } catch (err) {
+    console.error("Ошибка при очистке списка пользователей:", err);
+    await ctx.reply("Произошла ошибка при очистке списка.");
   }
 });
 
@@ -74,7 +59,7 @@ bot.use(session({
 
 bot.api.setMyCommands([
   { command: "start", description: "Начать общение с ботом" },
-  { command: "list", description: "Список (только для администраторов)" },
+  { command: "list", description: "Список пользователей" },
 ]);
 
 // Проверка, является ли пользователь администратором
@@ -98,7 +83,7 @@ bot.command("start", async (ctx) => {
 
   const caption = `Привет, ${firstName}!\n\nОтветьте всего на 2 вопроса и получите <b>ГОТОВОЕ ДИЗАЙНЕРСКОЕ РЕШЕНИЕ</b>`;
 
-  const keyboard = new InlineKeyboard().text("Ответить на вопросы", "show_options");
+  const keyboard = new InlineKeyboard().text("Ответить на вопросы", "show_options").row().text("Удалить список", "clear_list");
 
   // Добавляем кнопку "Список" для администраторов
   if (await isAdmin(ctx)) {
@@ -111,8 +96,21 @@ bot.command("start", async (ctx) => {
     reply_markup: keyboard,
   });
   
-  // Сохраняем имя пользователя вместо ID
-  addUserId(ctx);
+  // Сохраняем имя пользователя в память
+  addUser(ctx);
+});
+
+bot.callbackQuery("clear_list", async (ctx) => {
+  try {
+    users.clear();
+    await ctx.reply("Список пользователей успешно очищен.");
+    console.log("Список пользователей очищен.");
+  } catch (err) {
+    console.error("Ошибка при очистке списка пользователей:", err);
+    await ctx.reply("Произошла ошибка при очистке списка.");
+  }
+
+  await ctx.answerCallbackQuery();
 });
 
 bot.callbackQuery("show_options", async (ctx) => {
@@ -250,24 +248,19 @@ bot.callbackQuery("get_gift", async (ctx) => {
   }
 });
 
-// Обработка кнопки "Список" для отправки файла user_ids.txt
+// Обработка кнопки "Список" для отправки списка пользователей
 bot.callbackQuery("admin_list", async (ctx) => {
   try {
-    // Правильный путь к файлу user_ids.txt в папке data
-    const filePath = path.join(__dirname, "data", "user_ids.txt");
-
-    if (fs.existsSync(filePath)) {
-      const document = new InputFile(filePath);
-      await ctx.replyWithDocument(document, {
-        caption: "📄 Список пользователей, начавших взаимодействие с ботом.",
-      });
-      console.log("Файл user_ids.txt успешно отправлен пользователю.");
+    if (users.size > 0) {
+      const userList = Array.from(users).join("\n");
+      await ctx.reply(`📄 Список пользователей, начавших взаимодействие с ботом:\n\n${userList}`);
+      console.log("Список пользователей успешно отправлен.");
     } else {
-      await ctx.reply("Файл user_ids.txt не найден.");
-      console.log("Файл user_ids.txt не найден.");
+      await ctx.reply("Список пользователей пока пуст.");
+      console.log("Список пользователей пуст.");
     }
   } catch (err) {
-    console.error("Ошибка при отправке файла user_ids.txt:", err);
+    console.error("Ошибка при отправке списка пользователей:", err);
     await ctx.reply("Произошла ошибка при выполнении команды.");
   }
 
