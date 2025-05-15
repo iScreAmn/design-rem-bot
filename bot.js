@@ -8,35 +8,66 @@ const bot = new Bot(process.env.BOT_API_KEY);
 const CHANNEL_USERNAME = "@iscreamchanell";
 const DESIGNER_USERNAME = "olga_korshow";
 
-// Функция для добавления имени пользователя в память
-const users = new Set();
-
+// --- Сохраняем пользователей в файл для персистентности ---
+const usersFilePath = path.join(__dirname, "data", "users.json");
+let users = new Set();
+// Загрузка пользователей из файла
+if (fs.existsSync(usersFilePath)) {
+  try {
+    const data = fs.readFileSync(usersFilePath, "utf-8");
+    const parsedUsers = JSON.parse(data);
+    users = new Set(parsedUsers);
+    console.log("Список пользователей загружен из файла.");
+  } catch (err) {
+    console.error("Ошибка при загрузке списка пользователей:", err);
+  }
+}
+// Функция для добавления имени пользователя в память и файл
 function addUser(ctx) {
   const user = ctx.from;
   const userName = user.username ? `@${user.username}` : `${user.first_name} ${user.last_name || ""}`.trim();
-  users.add(userName);
-  console.log(`Добавлен новый пользователь: ${userName}`);
+  if (!users.has(userName)) {
+    users.add(userName);
+    console.log(`Добавлен новый пользователь: ${userName}`);
+    // Сохранение списка пользователей в файл
+    try {
+      fs.mkdirSync(path.dirname(usersFilePath), { recursive: true });
+      fs.writeFileSync(usersFilePath, JSON.stringify(Array.from(users)), "utf-8");
+      console.log("Список пользователей сохранён в файл.");
+    } catch (err) {
+      console.error("Ошибка при сохранении списка пользователей:", err);
+    }
+  }
 }
 
-// Обработка команды /list для отправки списка пользователей в сообщении с кнопкой очистки
+// Обработка команды /list для отправки списка пользователей (только для администраторов канала)
 bot.command("list", async (ctx) => {
   try {
-    const keyboard = new InlineKeyboard().text("🗑️ Очистить список", "clear_list");
+    // Проверка, является ли пользователь администратором канала
+    const member = await ctx.api.getChatMember(CHANNEL_USERNAME, ctx.from.id);
+    const isAdmin = ["administrator", "creator"].includes(member.status);
 
-    if (users.size > 0) {
-      const userList = Array.from(users).join("\n");
-      await ctx.reply(`📄 Список пользователей, начавших взаимодействие с ботом:\n\n${userList}`, {
-        reply_markup: keyboard,
-      });
-      console.log("Список пользователей успешно отправлен.");
+    if (isAdmin) {
+      const keyboard = new InlineKeyboard().text("🗑️ Очистить список", "clear_list");
+
+      if (users.size > 0) {
+        const userList = Array.from(users).join("\n");
+        await ctx.reply(`💡 Список пользователей, начавших взаимодействие с ботом:\n\n${userList}`, {
+          reply_markup: keyboard,
+        });
+        console.log("Список пользователей успешно отправлен администратору.");
+      } else {
+        await ctx.reply("Список пользователей пока пуст.", {
+          reply_markup: keyboard,
+        });
+        console.log("Список пользователей пуст.");
+      }
     } else {
-      await ctx.reply("Список пользователей пока пуст.", {
-        reply_markup: keyboard,
-      });
-      console.log("Список пользователей пуст.");
+      await ctx.reply("❌ Эта команда доступна только администраторам канала.");
+      console.log("Пользователь не является администратором канала.");
     }
   } catch (err) {
-    console.error("Ошибка при отправке списка пользователей:", err);
+    console.error("Ошибка при проверке прав администратора или отправке списка пользователей:", err);
     await ctx.reply("Произошла ошибка при выполнении команды.");
   }
 });
@@ -45,6 +76,14 @@ bot.command("list", async (ctx) => {
 bot.command("clear", async (ctx) => {
   try {
     users.clear();
+    // Сохраняем пустой список пользователей в файл
+    try {
+      fs.mkdirSync(path.dirname(usersFilePath), { recursive: true });
+      fs.writeFileSync(usersFilePath, JSON.stringify([]), "utf-8");
+      console.log("Список пользователей очищен и сохранён в файл.");
+    } catch (err) {
+      console.error("Ошибка при сохранении очищенного списка пользователей:", err);
+    }
     await ctx.reply("Список пользователей успешно очищен.");
     console.log("Список пользователей очищен.");
   } catch (err) {
@@ -83,9 +122,10 @@ bot.command("start", async (ctx) => {
 
   const caption = `Привет, ${firstName}!\n\nОтветьте всего на 2 вопроса и получите <b>ГОТОВОЕ ДИЗАЙНЕРСКОЕ РЕШЕНИЕ</b>`;
 
-  const keyboard = new InlineKeyboard().text("Ответить на вопросы", "show_options").row().text("Удалить список", "clear_list");
+  // Убираем кнопку "Удалить список" из стартового сообщения
+  const keyboard = new InlineKeyboard().text("Ответить на вопросы", "show_options");
 
-  // Добавляем кнопку "Список" для администраторов
+  // Добавляем кнопку "Список" только для администраторов
   if (await isAdmin(ctx)) {
     keyboard.row().text("Список", "admin_list");
   }
@@ -103,13 +143,20 @@ bot.command("start", async (ctx) => {
 bot.callbackQuery("clear_list", async (ctx) => {
   try {
     users.clear();
+    // Сохраняем пустой список пользователей в файл
+    try {
+      fs.mkdirSync(path.dirname(usersFilePath), { recursive: true });
+      fs.writeFileSync(usersFilePath, JSON.stringify([]), "utf-8");
+      console.log("Список пользователей очищен и сохранён в файл.");
+    } catch (err) {
+      console.error("Ошибка при сохранении очищенного списка пользователей:", err);
+    }
     await ctx.reply("Список пользователей успешно очищен.");
     console.log("Список пользователей очищен.");
   } catch (err) {
     console.error("Ошибка при очистке списка пользователей:", err);
     await ctx.reply("Произошла ошибка при очистке списка.");
   }
-
   await ctx.answerCallbackQuery();
 });
 
@@ -121,7 +168,7 @@ bot.callbackQuery("show_options", async (ctx) => {
     .row()
     .text("Две комнаты", "option_2")
     .row()
-    .text("3 и более", "option_3");
+    .text("5 и более", "option_3");
 
   await ctx.reply("Сколько комнат в квартире?", {
     reply_markup: optionsKeyboard,
