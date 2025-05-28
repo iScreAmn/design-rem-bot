@@ -6,7 +6,7 @@ const { writeFile } = require("fs/promises");
 
 const bot = new Bot(process.env.BOT_API_KEY);
 
-const CHANNEL_USERNAME = "@iscreamchanell";
+const CHANNEL_USERNAME = "@lafee_remont";
 const DESIGNER_USERNAME = "olga_korshow";
 
 // Сохраняем пользователей в JSON
@@ -108,7 +108,7 @@ bot.command("start", async (ctx) => {
   const filePath = path.join(__dirname, "img", "welcome.jpg");
   const photo = new InputFile(filePath);
 
-  const caption = `Привет, ${firstName}!\n\nОтветьте всего на 2 вопроса и получите <b>ГОТОВОЕ ДИЗАЙНЕРСКОЕ РЕШЕНИЕ</b>`;
+  const caption = `Привет, ${firstName}!\n\nОтветьте на пару простых вопросов и получите <b>ГОТОВОЕ ДИЗАЙНЕРСКОЕ РЕШЕНИЕ</b>`;
 
   const keyboard = new InlineKeyboard().text("Ответить на вопросы", "show_options");
 
@@ -131,20 +131,42 @@ bot.callbackQuery("show_options", async (ctx) => {
   console.log("Обработка callbackQuery: show_options");
 
   const optionsKeyboard = new InlineKeyboard()
-    .text("Одна комната", "option_1")
+    .text("Квартира студия", "option_1")
     .row()
-    .text("Две комнаты", "option_2")
+    .text("Одна комната", "option_2")
     .row()
-    .text("3 и более", "option_3");
+    .text("Две комнаты", "option_3")
+    .row()
+    .text("3 и более", "option_4");
 
-  await ctx.reply("Сколько комнат в квартире?", {
+  await ctx.reply("Сколько комнат в вашей квартире?", {
     reply_markup: optionsKeyboard,
   });
 
   await ctx.answerCallbackQuery();
 });
 
-bot.callbackQuery(/option_\d/, async (ctx) => {
+// Обработка нажатия "Квартира студия" отдельно
+bot.callbackQuery("option_1", async (ctx) => {
+  console.log("Обработка callbackQuery: option_1");
+
+  ctx.session.style = "LA FEE квартира-студия.pdf";
+
+  const keyboard = new InlineKeyboard().text("Получить подарок 🎁", "get_gift");
+
+  await ctx.reply(
+    '<b>Спасибо за ваш ответ.</b> Для получения подарка подпишитесь на наш Telegram канал <a href="https://t.me/lafee_remont">Подписаться 👇</a>.',
+    {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    }
+  );
+
+  await ctx.answerCallbackQuery();
+});
+
+// Обработка других опций
+bot.callbackQuery(/option_[2-4]/, async (ctx) => {
   console.log("Обработка callbackQuery: option");
 
   const photoFiles = [
@@ -185,10 +207,10 @@ bot.callbackQuery(/answer_\d/, async (ctx) => {
 
   // Сопоставление выбора пользователя с соответствующим PDF-файлом
   const styleMap = {
-    answer_1: "modern.pdf",
-    answer_2: "classic.pdf",
-    answer_3: "minimal.pdf",
-    answer_4: "loft.pdf",
+    answer_1: "LA FEE современный стиль.pdf",
+    answer_2: "LA FEE классический стиль.pdf",
+    answer_3: "LA FEE минимализм.pdf",
+    answer_4: "LA FEE лофт.pdf",
   };
 
   if (styleMap[answer]) {
@@ -198,7 +220,7 @@ bot.callbackQuery(/answer_\d/, async (ctx) => {
     const keyboard = new InlineKeyboard().text("Получить подарок 🎁", "get_gift");
 
     await ctx.reply(
-      '<b>Спасибо за ответы.</b> Для получения подарка подпишитесь на наш Telegram канал <a href="https://t.me/lafee_remont">Подписаться 👇</a>.',
+      '<b>Спасибо за ваши ответы.</b> Для получения подарка подпишитесь на наш Telegram канал <a href="https://t.me/lafee_remont">Подписаться 👇</a>.',
       {
         parse_mode: "HTML",
         reply_markup: keyboard,
@@ -208,7 +230,7 @@ bot.callbackQuery(/answer_\d/, async (ctx) => {
     const message = `<b>Спасибо за ответы.</b> Для получения подборки по стилю от нашего дизайнера, напишите нам в Telegram слово "СТИЛЬ".`;
 
     const keyboard = new InlineKeyboard().url(
-      'Написать слово "СТИЛЬ"',
+      'Написать слово «СТИЛЬ».',
       `https://t.me/${DESIGNER_USERNAME}?start=СТИЛЬ`
     );
 
