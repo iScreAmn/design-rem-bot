@@ -207,7 +207,7 @@ bot.callbackQuery(/answer_\d/, async (ctx) => {
 
   // Сопоставление выбора пользователя с соответствующим PDF-файлом
   const styleMap = {
-    answer_1: "test.pdf",
+    answer_1: "LA FEE современный стиль.pdf",
     answer_2: "LA FEE классический стиль.pdf",
     answer_3: "LA FEE минимализм.pdf",
     answer_4: "LA FEE лофт.pdf",
