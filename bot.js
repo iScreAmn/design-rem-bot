@@ -26,14 +26,20 @@ if (fs.existsSync(usersFilePath)) {
 // Функция для добавления имени пользователя в память и файл
 function addUser(ctx) {
   const user = ctx.from;
-  const userName = user.username ? `@${user.username}` : `${user.first_name} ${user.last_name || ""}`.trim();
+  const userName = user.username
+    ? `@${user.username}`
+    : `${user.first_name} ${user.last_name || ""}`.trim();
   if (!users.has(userName)) {
     users.add(userName);
     console.log(`Добавлен новый пользователь: ${userName}`);
     // Сохранение списка пользователей в файл
     try {
       fs.mkdirSync(path.dirname(usersFilePath), { recursive: true });
-      fs.writeFileSync(usersFilePath, JSON.stringify(Array.from(users)), "utf-8");
+      fs.writeFileSync(
+        usersFilePath,
+        JSON.stringify(Array.from(users)),
+        "utf-8"
+      );
       console.log("Список пользователей сохранён в файл.");
     } catch (err) {
       console.error("Ошибка при сохранении списка пользователей:", err);
@@ -51,11 +57,12 @@ bot.command("list", async (ctx) => {
     if (isAdmin) {
       if (users.size > 0) {
         const userList = Array.from(users).join("\n");
-        await ctx.reply(`💡 Список пользователей, начавших взаимодействие с ботом:\n\n${userList}`);
+        await ctx.reply(
+          `💡 Список пользователей, начавших взаимодействие с ботом:\n\n${userList}`
+        );
         console.log("Список пользователей успешно отправлен администратору.");
       } else {
-        await ctx.reply("Список пользователей пока пуст.", {
-        });
+        await ctx.reply("Список пользователей пока пуст.", {});
         console.log("Список пользователей пуст.");
       }
     } else {
@@ -63,21 +70,24 @@ bot.command("list", async (ctx) => {
       console.log("Пользователь не является администратором канала.");
     }
   } catch (err) {
-    console.error("Ошибка при проверке прав администратора или отправке списка пользователей:", err);
+    console.error(
+      "Ошибка при проверке прав администратора или отправке списка пользователей:",
+      err
+    );
     await ctx.reply("Произошла ошибка при выполнении команды.");
   }
 });
 
 // Инициализация сессии с поддержкой нескольких подарков
-bot.use(session({
-  initial: () => ({
-    style: null,
-    giftSent: {}, // Хранит информацию о полученных подарках
-    giftMessages: []
-  }),
-}));
-
-
+bot.use(
+  session({
+    initial: () => ({
+      style: null,
+      giftSent: {}, // Хранит информацию о полученных подарках
+      giftMessages: [],
+    }),
+  })
+);
 
 bot.api.setMyCommands([
   { command: "start", description: "Начать общение с ботом" },
@@ -110,7 +120,10 @@ bot.command("start", async (ctx) => {
 
   const caption = `Привет, ${firstName}!\n\nОтветьте на пару простых вопросов и получите <b>ГОТОВОЕ ДИЗАЙНЕРСКОЕ РЕШЕНИЕ</b>`;
 
-  const keyboard = new InlineKeyboard().text("Ответить на вопросы", "show_options");
+  const keyboard = new InlineKeyboard().text(
+    "Ответить на вопросы",
+    "show_options"
+  );
 
   // Добавляем кнопку "Список" только для администраторов
   if (await isAdmin(ctx)) {
@@ -122,7 +135,7 @@ bot.command("start", async (ctx) => {
     parse_mode: "HTML",
     reply_markup: keyboard,
   });
-  
+
   // Сохраняем имя пользователя в память
   addUser(ctx);
 });
@@ -131,11 +144,11 @@ bot.callbackQuery("show_options", async (ctx) => {
   console.log("Обработка callbackQuery: show_options");
 
   const optionsKeyboard = new InlineKeyboard()
-    .text("Квартира студия", "option_1")
+    .text("Квартира-студия", "option_1")
     .row()
-    .text("Одна комната", "option_2")
+    .text("1 комната", "option_2")
     .row()
-    .text("Две комнаты", "option_3")
+    .text("2 комнаты", "option_3")
     .row()
     .text("3 и более", "option_4");
 
@@ -155,7 +168,7 @@ bot.callbackQuery("option_1", async (ctx) => {
   const keyboard = new InlineKeyboard().text("Получить подарок 🎁", "get_gift");
 
   await ctx.reply(
-    '<b>Спасибо за ваш ответ.</b> Для получения подарка подпишитесь на наш Telegram канал <a href="https://t.me/lafee_remont">Подписаться 👇</a>.',
+    '<b>Спасибо за ваш ответ.</b> Для получения подарка подпишитесь на наш Telegram канал <a href="https://t.me/lafee_remont">Подписаться 👇</a>',
     {
       parse_mode: "HTML",
       reply_markup: keyboard,
@@ -217,10 +230,13 @@ bot.callbackQuery(/answer_\d/, async (ctx) => {
     // Сохраняем выбор пользователя в сессии
     ctx.session.style = styleMap[answer];
 
-    const keyboard = new InlineKeyboard().text("Получить подарок 🎁", "get_gift");
+    const keyboard = new InlineKeyboard().text(
+      "Получить подарок 🎁",
+      "get_gift"
+    );
 
     await ctx.reply(
-      '<b>Спасибо за ваши ответы.</b> Для получения подарка подпишитесь на наш Telegram канал <a href="https://t.me/lafee_remont">Подписаться 👇</a>.',
+      '<b>Спасибо за ваши ответы.</b> Для получения подарка подпишитесь на наш Telegram канал <a href="https://t.me/lafee_remont">Подписаться 👇</a>',
       {
         parse_mode: "HTML",
         reply_markup: keyboard,
@@ -230,7 +246,7 @@ bot.callbackQuery(/answer_\d/, async (ctx) => {
     const message = `<b>Спасибо за ответы.</b> Для получения подборки по стилю от нашего дизайнера, напишите нам в Telegram слово "СТИЛЬ".`;
 
     const keyboard = new InlineKeyboard().url(
-      'Написать слово «СТИЛЬ».',
+      "Написать слово «СТИЛЬ».",
       `https://t.me/${DESIGNER_USERNAME}?start=СТИЛЬ`
     );
 
@@ -245,17 +261,20 @@ bot.callbackQuery(/answer_\d/, async (ctx) => {
 
 bot.callbackQuery("get_gift", async (ctx) => {
   try {
-    // Проверяем, был ли выбран стиль, если нет — сбрасываем выбор
     if (!ctx.session.style) {
-      await ctx.reply("📝 Пожалуйста, выберите стиль заново, так как данные сессии были сброшены.");
+      await ctx.reply(
+        "📝 Пожалуйста, выберите стиль заново, так как данные сессии были сброшены."
+      );
       return;
     }
 
     const selectedStyle = ctx.session.style;
 
-    // Проверяем, получил ли пользователь уже подарок для выбранного стиля
     if (ctx.session.giftSent[selectedStyle]) {
-      await ctx.answerCallbackQuery({ text: "Вы уже получили этот подарок 🎁", show_alert: true });
+      await ctx.answerCallbackQuery({
+        text: "Вы уже получили этот подарок 🎁",
+        show_alert: true,
+      });
       return;
     }
 
@@ -263,15 +282,23 @@ bot.callbackQuery("get_gift", async (ctx) => {
     const member = await ctx.api.getChatMember(CHANNEL_USERNAME, ctx.from.id);
     const status = member.status;
 
-    if (status === "member" || status === "administrator" || status === "creator") {
+    if (["member", "administrator", "creator"].includes(status)) {
+      // Отправка текстового сообщения
+      await ctx.reply(
+        "🎁 Спасибо за подписку! <b>ВОТ ВАШ ПОДАРОК</b> — <b>подборка от дизайнера</b> по выбранному стилю ⬇️",
+        { parse_mode: "HTML" }
+      );
+
+      // Отправка PDF-файла
       const filePath = path.join(__dirname, "pdf", selectedStyle);
       const document = new InputFile(filePath, selectedStyle);
-      await ctx.replyWithDocument(document, {
-        caption: "🎁 Спасибо за подписку! Вот ваш подарок — подборка по выбранному стилю.",
-      });
+      await ctx.replyWithDocument(document);
 
-      // Обновляем все сообщения с кнопкой "Получить подарок" на "Спасибо 🥳"
-      const thankYouKeyboard = new InlineKeyboard().text("Спасибо 🥳", "thank_you");
+      // Обновление сообщений с кнопкой "Получить подарок"
+      const thankYouKeyboard = new InlineKeyboard().text(
+        "Спасибо 🥳",
+        "thank_you"
+      );
 
       if (ctx.session.giftMessages) {
         for (const msg of ctx.session.giftMessages) {
@@ -280,23 +307,26 @@ bot.callbackQuery("get_gift", async (ctx) => {
               reply_markup: thankYouKeyboard,
             });
           } catch (err) {
-            console.error(`Не удалось обновить сообщение ${msg.message_id}:`, err);
+            console.error(
+              `Не удалось обновить сообщение ${msg.message_id}:`,
+              err
+            );
           }
         }
-        // Очищаем список сообщений после обновления
         ctx.session.giftMessages = [];
       }
 
-      // Отмечаем, что подарок для выбранного стиля уже отправлен
       ctx.session.giftSent[selectedStyle] = true;
     } else {
-      const keyboard = new InlineKeyboard().text("Получить подарок 🎁", "get_gift");
+      const keyboard = new InlineKeyboard().text(
+        "Получить подарок 🎁",
+        "get_gift"
+      );
       const sentMessage = await ctx.reply(
         `Пожалуйста, подпишитесь на наш канал ${CHANNEL_USERNAME}, чтобы получить подарок.`,
         { reply_markup: keyboard }
       );
 
-      // Сохраняем идентификатор сообщения с кнопкой "Получить подарок"
       if (!ctx.session.giftMessages) {
         ctx.session.giftMessages = [];
       }
@@ -309,7 +339,9 @@ bot.callbackQuery("get_gift", async (ctx) => {
     await ctx.answerCallbackQuery();
   } catch (err) {
     console.error("Ошибка при проверке подписки или отправке PDF:", err);
-    await ctx.reply("Произошла ошибка при проверке вашей подписки или отправке файла. Пожалуйста, попробуйте позже.");
+    await ctx.reply(
+      "Произошла ошибка при проверке вашей подписки или отправке файла. Пожалуйста, попробуйте позже."
+    );
   }
 });
 
@@ -317,7 +349,9 @@ bot.callbackQuery("admin_list", async (ctx) => {
   try {
     if (users.size > 0) {
       const userList = Array.from(users).join("\n");
-      await ctx.reply(`💡 Список пользователей, начавших взаимодействие с ботом:\n\n${userList}`);
+      await ctx.reply(
+        `💡 Список пользователей, начавших взаимодействие с ботом:\n\n${userList}`
+      );
       console.log("Список пользователей успешно отправлен.");
     } else {
       await ctx.reply("⚙️ Список пользователей пока пуст.");
